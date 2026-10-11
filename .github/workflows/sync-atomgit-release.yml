@@ -50,6 +50,8 @@ permissions:
 
 jobs:
   sync:
+    # Upstream publishing integrations are not enabled in forks.
+    if: github.repository == 'electerm/electerm'
     runs-on: ubuntu-latest
     environment: build
     env:

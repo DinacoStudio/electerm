@@ -9,7 +9,7 @@ jobs:
     # Allow real releases plus manual verification via pushes to test-winget.
     # NOTE: previously `if: github.event_name == 'release'` made pushes to
     # test-winget a no-op, so sync problems could not be tested.
-    if: github.event_name == 'release' || github.ref == 'refs/heads/test-winget'
+    if: ${{ github.repository == 'electerm/electerm' && (github.event_name == 'release' || github.ref == 'refs/heads/test-winget') }}
     runs-on: ubuntu-24.04
     environment: build
     steps:

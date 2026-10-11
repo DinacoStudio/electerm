@@ -6,6 +6,8 @@ on:
     branches: [ r2 ]
 jobs:
   upload-to-r2:
+    # Upstream publishing integrations are not enabled in forks.
+    if: github.repository == 'electerm/electerm'
     runs-on: ubuntu-latest
     environment: build
     steps:

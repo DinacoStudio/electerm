@@ -12,6 +12,8 @@ on:
 
 jobs:
   upload-to-snap-store:
+    # Upstream publishing integrations are not enabled in forks.
+    if: github.repository == 'electerm/electerm'
     runs-on: ubuntu-24.04
     environment: build
 

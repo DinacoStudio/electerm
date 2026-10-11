@@ -12,6 +12,8 @@ on:
 
 jobs:
   upload-to-store:
+    # Upstream publishing integrations are not enabled in forks.
+    if: github.repository == 'electerm/electerm'
     runs-on: windows-2022
     environment: build
 

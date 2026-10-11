@@ -1,0 +1,139 @@
+name: Release Manager
+run-name: Release ${{ inputs.version }} · ${{ inputs.platforms }} · ${{ inputs.mode }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version without v (example: 5.5.80 or 5.5.80-beta.1)'
+        required: true
+        type: string
+      platforms:
+        description: Build platforms (x64)
+        type: choice
+        options: [windows, windows-linux, all, linux, macos]
+        default: windows
+      mode:
+        description: What to do after every selected build succeeds
+        type: choice
+        options: [draft, artifacts, prerelease, publish]
+        default: draft
+      previous_tag:
+        description: 'Changelog starts after this tag (empty = nearest ancestor tag)'
+        type: string
+      notes:
+        description: Optional release introduction (editable later in the draft)
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-manager-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    # Upstream publishing integrations are not enabled in forks.
+    if: github.repository == 'electerm/electerm'
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Validate inputs and generate release notes
+        id: plan
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_PLATFORMS: ${{ inputs.platforms }}
+          RELEASE_MODE: ${{ inputs.mode }}
+          RELEASE_PREVIOUS_TAG: ${{ inputs.previous_tag }}
+          RELEASE_NOTES: ${{ inputs.notes }}
+        run: node src/build/release/manage.cjs plan
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-plan
+          path: release-plan/
+          retention-days: 30
+
+  build:
+    # Upstream publishing integrations are not enabled in forks.
+    if: github.repository == 'electerm/electerm'
+    needs: plan
+    name: Build ${{ matrix.platform }} x64
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    env:
+      npm_config_legacy_peer_deps: 'true'
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-plan
+          path: release-plan
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps --no-audit --no-fund
+      - name: Test Warpgate compatibility and release tooling
+        run: node --test src/test/unit-ci/warpgate-compat.spec.js src/test/unit-ci/release-manager.spec.cjs
+      - name: Prepare version and isolated packaging configuration
+        env:
+          RELEASE_PLATFORM: ${{ matrix.platform }}
+        run: node src/build/release/manage.cjs configure
+      - name: Compile and prepare application (fail on any error)
+        run: node src/build/release/compile.cjs
+      - name: Package without publishing
+        env:
+          RELEASE_PLATFORM: ${{ matrix.platform }}
+        run: node src/build/release/manage.cjs build
+      - name: Collect installers and checksums
+        env:
+          RELEASE_PLATFORM: ${{ matrix.platform }}
+        run: node src/build/release/manage.cjs collect
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.platform }}-x64
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    # Upstream publishing integrations are not enabled in forks.
+    if: github.repository == 'electerm/electerm'
+    needs: [plan, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-plan
+          path: release-plan
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*-x64
+          path: release-assets
+          merge-multiple: true
+      - name: Verify all builds and create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node src/build/release/manage.cjs release

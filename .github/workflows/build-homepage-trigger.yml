@@ -7,6 +7,8 @@ on:
 
 jobs:
   trigger-website-update:
+    # Upstream publishing integrations are not enabled in forks.
+    if: github.repository == 'electerm/electerm'
     runs-on: ubuntu-latest
     environment: build
     strategy:
