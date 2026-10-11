@@ -12,6 +12,7 @@ const log = require('../common/log')
 const { algDefault, algAlt } = require('./ssh2-alg')
 const { createHostVerifier } = require('./ssh-known-hosts')
 const { maybeProxyCommand } = require('./ssh-proxy-command')
+const { installWarpgateCompatibility } = require('./warpgate-compat')
 const sshTunnelFuncs = require('./ssh-tunnel')
 const deepCopy = require('json-deep-copy')
 const { TerminalBase } = require('./session-base')
@@ -680,6 +681,9 @@ class TerminalSshBase extends TerminalBase {
     }
     this.authPartiallySucceeded = false
     connectOptions.authHandler = this.createAuthHandler(connectOptions)
+    if (connectOptions.warpgateCompat === true) {
+      installWarpgateCompatibility(conn)
+    }
     return new Promise((resolve, reject) => {
       conn.on('keyboard-interactive', async (
         name,
@@ -850,6 +854,7 @@ class TerminalSshBase extends TerminalBase {
       this.getAgentOptions(),
       _.pick(initOptions, [
         'host',
+        'warpgateCompat',
         'port',
         'username',
         'password',

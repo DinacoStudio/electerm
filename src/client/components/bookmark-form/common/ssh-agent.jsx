@@ -39,6 +39,15 @@ export default function SshAgent () {
       >
         <SwitchLabel />
       </FormItem>
+      <FormItem
+        {...formItemLayout}
+        label='Warpgate'
+        name='warpgateCompat'
+        valuePropName='checked'
+        tooltip='Enable Warpgate compatibility: forward the SSH agent without waiting for acknowledgement and start SFTP after selecting a target in the SSH menu.'
+      >
+        <SwitchLabel />
+      </FormItem>
     </>
   )
 }
